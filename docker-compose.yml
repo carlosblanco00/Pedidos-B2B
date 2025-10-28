@@ -1,0 +1,85 @@
+version: "3.9"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: b2b
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./db/data:/var/lib/mysql
+    networks:
+      - b2b-network
+
+  customers-api:
+    build:
+      context: ./customers-api
+      dockerfile: Dockerfile
+    container_name: customers-api
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DB_HOST=mysql
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - DB_NAME=b2b
+      - DB_PORT=3306
+      - SERVICE_TOKEN=my-secret-service-token
+    depends_on:
+      - mysql
+    volumes:
+      - ./customers-api:/app
+      - /app/node_modules
+    command: npm run dev
+    networks:
+      - b2b-network
+
+  orders-api:
+    build: ./orders-api
+    container_name: orders-api
+    ports:
+      - "3002:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DB_HOST=mysql
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - DB_NAME=b2b
+      - DB_PORT=3306
+      - CUSTOMERS_API_URL=http://customers-api:3000
+      - SERVICE_TOKEN=my-secret-service-token
+    depends_on:
+      - mysql
+      - customers-api
+    networks:
+      - b2b-network
+  lambda-orchestrator:
+    build:
+      context: ./lambda-orchestrator
+    container_name: lambda-orchestrator
+    ports:
+      - "3000:3000" # expone la lambda en el puerto 3000
+    environment:
+      - NODE_ENV=development
+      - CUSTOMERS_API_URL=http://customers-api:3000
+      - ORDERS_API_URL=http://orders-api:3000
+      - SERVICE_TOKEN=my-secret-service-token
+      - SERVERLESS_ACCESS_KEY=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJvcmdJZCI6ImIwMGZlNjZlLTA4OGItNGQzMi1iMTIzLTIwYTlhNTJmNzgwZCIsImlhdCI6MTc2MTYzMDA1NCwiZXhwIjoxNzkzMTY2MDU0LCJpc3MiOiJhcHAuc2VydmVybGVzcy5jb20ifQ.r4j2dV95sXEFbze-E0Vo26yBqSvF5wHA_2RaMSPpdhM7_8JXx62cZNL6zKMcqbSkPW3g6GY9n8QGbSLMQwxQXUzINYDU9Gz9kyhSA7sK6tKLKE3aYPwT0UkDDeDMMuOunVGPX3vU8xIpvs8GuYTow438jhsSVPzqDcYKTzoWyWToZLnTI4BxBieZp17cy_D0FjeyrK4yQamxV-nwak7g76tqLACadg4K3C8RPRhgqqD6NTjv8BNWjN4nCqkx3Pr-r7N0PAGRI_EAT6MYJCIBw8s-OOy-eihy7uJeVNVqGORrav93AFRtDb0ov5Kk4SkAwedssbGjduG9JabKdjTS7g
+    depends_on:
+      - customers-api
+      - orders-api
+    networks:
+      - b2b-network
+
+networks:
+  b2b-network:
+    driver: bridge

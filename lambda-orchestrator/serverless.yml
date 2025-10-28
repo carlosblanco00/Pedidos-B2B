@@ -1,0 +1,19 @@
+service: lambda-orchestrator
+frameworkVersion: '4'
+
+provider:
+  name: aws
+  runtime: nodejs22.x
+  region: us-east-1
+
+functions:
+  createAndConfirmOrder:
+    handler: handler.handler
+    events:
+      - http:
+          path: orchestrator/create-and-confirm-order
+          method: post
+          cors: true
+
+plugins:
+  - serverless-offline
